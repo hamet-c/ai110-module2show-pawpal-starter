@@ -6,6 +6,7 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+Interface you can add a pet/pets with a calender, stemming from the pets you can have many different needs, walk frequency, feeding times etc calender/pet can likely have blocked time areas where the owner is unavailable so those times are not chosen for walking, 
 
 **b. Design changes**
 
