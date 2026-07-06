@@ -84,14 +84,18 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+**Priority-first placement.** `Scheduler.generate_schedule` sorts every task by priority (highest first) before placing any of them, so the important stuff (meds, feeding) always gets the best times. Lower-priority tasks fill in whatever is left, and if the day runs out of room they're skipped rather than forcing an overlap.
+
+**Preferred times, with an automatic fallback.** A task can carry an optional `preferred_time`. If that time is still open, `find_slot` places it there; if it's taken or outside the day window, the task quietly falls back to the earliest slot that fits. Tasks with no preferred time are placed automatically, so setting a time is optional.
+
+**No double-booking.** Each task the scheduler places is added to the calendar right away, so the next task only sees the time that's actually free. That means the scheduler never books two things at once for a single owner. `Calendar.get_available_slots` is what carves out the busy time (existing events plus any blocked-off spans).
+
+**Conflict detection as a backstop.** The calendar itself doesn't stop you from adding overlapping events (from a previous run, a manual entry, an import, etc.), so `Scheduler.detect_conflicts` scans a list of events and reports any that overlap, including how many minutes they collide and whether it's the same pet. This is the warning that catches clashes the scheduler didn't create.
+
+**Recurring tasks.** A `CareNeed` repeats either `DAILY` (every day) or `WEEKLY` on specific weekdays via `days_of_week`. `CareNeed.occurs_on(day)` decides whether a task applies to a given date, so a "walk only on Sat/Sun" task won't show up on a Tuesday. `frequency_per_day` then controls how many times it repeats on a day it does occur.
+
+**Filtering.** `Owner.filter_care_needs` returns tasks matching any combination of filters (completion status, pet name, care type, minimum priority), which makes it easy to answer questions like "what does Milo still have left to do today?"
 
 ## 📸 Demo Walkthrough
 

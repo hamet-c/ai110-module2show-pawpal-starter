@@ -33,6 +33,7 @@ Yeah it changed a bit. I had Claude review my skeleton to point out what relatio
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+The scheduler never books two things at the same time. Once it places a task, that time is taken, so the next task goes somewhere else. The catch is it only guarantees this for tasks it schedules. If an event gets added some other way, an overlap can happen. This works for the scenario because it's one owner who can only do one thing at a time, so auto avoiding overlaps is what they'd want anyway.
 
 ---
 

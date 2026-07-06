@@ -30,6 +30,17 @@ class CareType(Enum):
     PLAY = "play"
 
 
+class Recurrence(Enum):
+    """How often a CareNeed repeats across days.
+
+    DAILY  -> applies every day.
+    WEEKLY -> applies only on the weekdays listed in ``days_of_week``.
+    """
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+
+
 class EventStatus(Enum):
     SCHEDULED = "scheduled"
     COMPLETED = "completed"
@@ -58,13 +69,40 @@ class CareNeed:
     duration_minutes: int
     priority: int = 1  # higher number == higher priority
     completed: bool = False
+    # How this need repeats across days. Defaults to DAILY so existing needs
+    # (and the demo) keep their every-day behavior. When WEEKLY, the need only
+    # applies on the weekdays in ``days_of_week`` (0 = Monday .. 6 = Sunday).
+    recurrence: Recurrence = Recurrence.DAILY
+    days_of_week: set[int] = field(default_factory=set)
+    # Optional time of day the owner would like this to happen (e.g. a morning
+    # walk). None means "no preference" -> the scheduler picks automatically.
+    preferred_time: time | None = None
 
     def __post_init__(self) -> None:
-        """Validate frequency and duration after initialization."""
+        """Validate frequency, duration, and weekly recurrence settings."""
         if self.frequency_per_day < 1:
             raise ValueError("frequency_per_day must be at least 1")
         if self.duration_minutes <= 0:
             raise ValueError("duration_minutes must be positive")
+        if self.recurrence is Recurrence.WEEKLY:
+            if not self.days_of_week:
+                raise ValueError(
+                    "weekly care needs must list at least one weekday in "
+                    "days_of_week (0 = Monday .. 6 = Sunday)"
+                )
+            if any(d not in range(7) for d in self.days_of_week):
+                raise ValueError("days_of_week values must be in 0..6")
+
+    def occurs_on(self, day: date) -> bool:
+        """Return True if this need should be scheduled on ``day``.
+
+        Daily needs occur every day; weekly needs occur only on their listed
+        weekdays. ``frequency_per_day`` then controls how many times it repeats
+        on a day it does occur.
+        """
+        if self.recurrence is Recurrence.DAILY:
+            return True
+        return day.weekday() in self.days_of_week
 
     def mark_complete(self) -> None:
         """Mark this care need as done for the day."""
@@ -130,6 +168,25 @@ class Event:
     status: EventStatus
     pet_id: int
     care_need_id: int
+
+
+@dataclass
+class Conflict:
+    """Two events whose times overlap.
+
+    A conflict for a single owner means they'd need to be two places at once
+    (e.g. walking two pets in the same minutes). ``overlap_minutes`` is how much
+    the two events actually collide.
+    """
+
+    first: Event
+    second: Event
+    overlap_minutes: float
+
+    @property
+    def same_pet(self) -> bool:
+        """True if both events belong to the same pet."""
+        return self.first.pet_id == self.second.pet_id
 
 
 @dataclass
@@ -233,6 +290,40 @@ class Owner:
         """Return every care need across all pets, paired with its pet."""
         return [(pet, need) for pet in self.pets for need in pet.care_needs]
 
+    def filter_care_needs(
+        self,
+        *,
+        completed: bool | None = None,
+        pet_name: str | None = None,
+        care_type: CareType | None = None,
+        min_priority: int | None = None,
+    ) -> list[tuple[Pet, CareNeed]]:
+        """Return (pet, need) pairs matching every supplied filter.
+
+        All filters are optional and combine with AND; passing none returns
+        everything (same as :meth:`all_care_needs`).
+
+        Args:
+            completed: Keep only needs whose ``completed`` flag matches this.
+            pet_name: Keep only needs whose pet's name matches (case-insensitive).
+            care_type: Keep only needs of this :class:`CareType`.
+            min_priority: Keep only needs with priority >= this value.
+        """
+        target_name = pet_name.lower() if pet_name is not None else None
+
+        results: list[tuple[Pet, CareNeed]] = []
+        for pet, need in self.all_care_needs():
+            if completed is not None and need.completed != completed:
+                continue
+            if target_name is not None and pet.name.lower() != target_name:
+                continue
+            if care_type is not None and need.type != care_type:
+                continue
+            if min_priority is not None and need.priority < min_priority:
+                continue
+            results.append((pet, need))
+        return results
+
 
 class Scheduler:
     """The "brain": retrieves care needs across pets, organizes them by
@@ -260,6 +351,8 @@ class Scheduler:
         requests: list[tuple[Pet, CareNeed]] = []
         for pet in pets:
             for need in pet.care_needs:
+                if not need.occurs_on(day):
+                    continue  # Weekly need that doesn't fall on this weekday.
                 requests.extend((pet, need) for _ in range(need.frequency_per_day))
         requests.sort(key=lambda pn: pn[1].priority, reverse=True)
 
@@ -286,20 +379,62 @@ class Scheduler:
     def find_slot(
         self, need: CareNeed, calendar: Calendar, day: date | None = None
     ) -> TimeSlot | None:
-        """Find the earliest available slot on ``day`` that fits ``need``.
+        """Find a slot on ``day`` that fits ``need``.
 
-        Returns a TimeSlot sized to the need's duration, or None if nothing
-        fits. Returns None rather than raising so callers can skip gracefully.
+        If the need has a ``preferred_time`` and it's still free, honor it.
+        Otherwise (or if the preferred time is taken) fall back to the earliest
+        available slot that fits. Returns a TimeSlot sized to the need's
+        duration, or None if nothing fits, so callers can skip gracefully.
         """
         day = day or date.today()
         required = need.duration_minutes + self.slot_gap_minutes
-        for free in calendar.get_available_slots(day):
+        free_slots = calendar.get_available_slots(day)
+
+        # Preferred time first: place it there if it lands inside a free slot
+        # with enough room. If not, we just fall through to earliest-fit.
+        if need.preferred_time is not None:
+            wanted = datetime.combine(day, need.preferred_time)
+            for free in free_slots:
+                fits = wanted + timedelta(minutes=required)
+                if free.start <= wanted and fits <= free.end:
+                    return TimeSlot(
+                        wanted, wanted + timedelta(minutes=need.duration_minutes)
+                    )
+
+        for free in free_slots:
             if free.can_fit(required):
                 return TimeSlot(
                     free.start,
                     free.start + timedelta(minutes=need.duration_minutes),
                 )
         return None
+
+    def detect_conflicts(self, events: list[Event]) -> list[Conflict]:
+        """Return every pair of overlapping events among ``events``.
+
+        Two events conflict when their time ranges overlap at all, meaning a
+        single owner can't do both — e.g. two pets scheduled for the same
+        minutes. MISSED events are ignored since they no longer occupy time.
+
+        Uses a sort-by-start sweep: events are ordered by start time, then each
+        is compared only against still-"open" earlier events, so overlapping
+        clusters are found without checking every pair.
+        """
+        active = [e for e in events if e.status != EventStatus.MISSED]
+        active.sort(key=lambda e: e.start)
+
+        conflicts: list[Conflict] = []
+        for i, event in enumerate(active):
+            for earlier in active[:i]:
+                # Sorted by start, so `event.start >= earlier.start`. They
+                # overlap iff this event starts before the earlier one ends.
+                if event.start >= earlier.end:
+                    continue
+                overlap_end = min(event.end, earlier.end)
+                overlap = (overlap_end - event.start).total_seconds() / 60
+                if overlap > 0:
+                    conflicts.append(Conflict(earlier, event, overlap))
+        return conflicts
 
 
 class TaskLog:
