@@ -29,6 +29,8 @@ Yeah it changed a bit. I had Claude review my skeleton to point out what relatio
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+It looks at priority, how long a task takes, the free time left in the day, blocked off times, and an optional preferred time. Priority mattered most because if the day runs out of room i want the meds and feeding to get placed first and the low priority stuff to get dropped, not the other way around. Preferred time is a nice to have so it only gets honored if that slot is actually open.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
@@ -44,10 +46,14 @@ The scheduler never books two things at the same time. Once it places a task, th
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
 
+I used it to review my UML skeleton before i built it, to write the tests, and for debugging. I also used it to get ideas on what else i would need to test that i hadnt thought of. Specific prompts were the most helpful. Pointing it at exactly what i wanted feedback on got me a lot more than asking it to just build something.
+
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+It was telling me that everything was regular in app.py when there was a very evident bug so I had to make a new chat so that the AI would stop trying to gaslight me 
 
 ---
 
@@ -58,10 +64,14 @@ The scheduler never books two things at the same time. Once it places a task, th
 - What behaviors did you test?
 - Why were these tests important?
 
+I tested the core scheduling behaviors. That tasks come back in time order, that a daily task still recurs the next day after being marked complete, and that the scheduler flags overlapping events as conflicts. I also covered the basics like marking a task done and adding a task to a pet. These matter because they are the parts users actually rely on, if sorting or conflict detection is off the whole plan is wrong.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+Pretty confident on the main paths since they are all covered and passing. With more time i would test weekly tasks landing on the right weekdays, a day thats fully blocked so nothing fits, and preferred times that fall outside the day window or get taken.
 
 ---
 
@@ -71,10 +81,16 @@ The scheduler never books two things at the same time. Once it places a task, th
 
 - What part of this project are you most satisfied with?
 
+The scheduler itself. Placing tasks by priority into free slots without double booking came out clean, and the conflict detection on top of it works well.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+The Streamlit app. It got a bit tangled with session state and stale schedules, so i would rethink how the UI holds state so editing tasks and regenerating feels smoother, personally i dont like streamlit for running things at all
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+Get the design and relationships right early. Having the classes and how they connect sorted before writing logic made everything after it easier, and it also made the AI way more useful because i could point it at a real structure instead of a blank page.

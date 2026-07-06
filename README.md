@@ -1,6 +1,20 @@
 # PawPal+ (Module 2 Project)
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+**PawPal+** is a pet-care planning assistant. It turns a set of recurring care needs (walks, feeding, medication, play) across one or more pets into a conflict-free daily schedule, honoring priorities, preferred times, and the owner's busy hours. It ships with a Streamlit UI (`app.py`), a command-line demo (`main.py`), and a tested backend (`pawpal_system.py`).
+
+## ✨ Features
+
+The scheduling logic lives in `pawpal_system.py`. The algorithms it implements:
+
+- **Priority-first placement** — `Scheduler.generate_schedule` expands every care need by its `frequency_per_day`, sorts all occurrences by priority (highest first), and places them in that order. Critical care (meds, feeding) gets the best times; low-priority tasks fill the gaps.
+- **Sorting by time** — generated events are returned and displayed in chronological order (by start time), so the schedule reads top-to-bottom like a real day planner.
+- **Free-slot search with no double-booking** — `Calendar.get_available_slots` computes the open gaps in a day by carving out existing events and blocked time; each placed event is committed to the calendar immediately, so the next task only sees genuinely free time.
+- **Preferred times with automatic fallback** — a need may carry an optional `preferred_time`. `Scheduler.find_slot` honors it when that window is open, and otherwise silently falls back to the earliest slot that fits.
+- **Daily & weekly recurrence** — `CareNeed.occurs_on(day)` decides whether a task applies to a date: `DAILY` needs occur every day; `WEEKLY` needs occur only on the weekdays in `days_of_week` (0 = Monday … 6 = Sunday).
+- **Conflict warnings** — `Scheduler.detect_conflicts` runs a sort-by-start sweep over any list of events and reports every overlapping pair, including the overlap in minutes and whether it's the same pet or "two pets at once."
+- **Blocked / busy time** — `Calendar.add_blocked_time` reserves spans (work, appointments) that the scheduler treats as unavailable.
+- **Multi-criteria filtering** — `Owner.filter_care_needs` returns needs matching any combination of completion status, pet name, care type, and minimum priority (AND-combined).
+- **Completion logging** — `TaskLog.log_completed` marks an event done and records it, and `get_history(pet_id)` returns a pet's completed-task history.
 
 ## Scenario
 
@@ -44,7 +58,9 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Running `python main.py` builds a sample owner (Alex Rivera) with two pets and prints the day's schedule, the filtering demos, and a forced conflict:
+
+```text
 ============================================
   Today's Schedule for Alex Rivera
   Sunday, July 05, 2026
@@ -52,18 +68,44 @@ Paste a sample of your app's CLI or Streamlit output here so a reader can see wh
   07:00-07:10  Milo   Medication
   07:10-07:25  Rex    Feed
   07:25-07:40  Rex    Feed
-  07:40-08:10  Rex    Walk
-  08:10-08:40  Rex    Walk
-  08:40-09:00  Milo   Play
+  07:40-07:50  Milo   Feed
+  07:50-08:00  Milo   Feed
+  08:00-08:30  Rex    Walk
+  08:30-09:00  Rex    Walk
+  09:00-09:25  Rex    Play
+  09:25-09:45  Milo   Play
 --------------------------------------------
-  6 task(s) scheduled.
-
+  9 task(s) scheduled.
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+
+The remaining sections of the run demonstrate filtering and conflict detection:
+
+```text
+============================================
+  Filtering Demos
+============================================
+
+  All care needs (6):
+    Rex    feed        p4 todo
+    Rex    walk        p3 todo
+    Rex    play        p2 todo
+    Milo   medication  p5 todo
+    Milo   play        p1 todo
+    Milo   feed        p4 done
+
+  High priority (>= 4) (3):
+    Rex    feed        p4 todo
+    Milo   medication  p5 todo
+    Milo   feed        p4 done
+
+============================================
+  Conflict Detection
+============================================
+  08:00-08:30  Rex    Walk
+  08:15-08:45  Milo   Play
+
+  ⚠  1 scheduling conflict(s) detected:
+    Rex (walk) overlaps Milo (play) by 15 min — two pets at once
 ```
 
 ## 🧪 Testing PawPal+
@@ -112,14 +154,20 @@ test_conflict_detection_flags_duplicate_times — same-time events flag one conf
 
 **Filtering.** `Owner.filter_care_needs` returns tasks matching any combination of filters (completion status, pet name, care type, minimum priority), which makes it easy to answer questions like "what does Milo still have left to do today?"
 
-## 📸 Demo Walkthrough
+## 📖 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Run the app with `streamlit run app.py`. It has three tabs and a sidebar.
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+**What you can do:**
+- **Sidebar** — set the owner name and add pets.
+- **📋 Tasks** — add care needs (type, duration, times per day, priority, daily/weekly), and filter them.
+- **🗓️ Schedule** — pick a day, block off busy time, and generate the plan.
+- **✅ Review & History** — mark tasks complete and view history.
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+**Example workflow:**
+1. Add a pet in the sidebar.
+2. In **Tasks**, add a couple of care needs.
+3. In **Schedule**, click **Generate schedule** to see today's plan.
+4. In **Review**, mark a task complete.
+
+**What the scheduler shows:** tasks are placed highest-priority-first but listed in time order, never double-booked, and any overlapping events are flagged as conflicts.

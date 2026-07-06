@@ -1,0 +1,171 @@
+classDiagram
+    %% PawPal+ — final class diagram, matching pawpal_system.py.
+
+    class AnimalType {
+        <<enumeration>>
+        DOG
+        CAT
+        BIRD
+        OTHER
+    }
+
+    class CareType {
+        <<enumeration>>
+        WALK
+        FEED
+        MEDICATION
+        PLAY
+    }
+
+    class Recurrence {
+        <<enumeration>>
+        DAILY
+        WEEKLY
+    }
+
+    class EventStatus {
+        <<enumeration>>
+        SCHEDULED
+        COMPLETED
+        MISSED
+    }
+
+    class Owner {
+        +int id
+        +string name
+        +string email
+        +Pet[] pets
+        +Calendar calendar
+        +addPet(pet Pet) void
+        +removePet(petId int) void
+        +listPets() Pet[]
+        +allCareNeeds() tuple[Pet, CareNeed][]
+        +filterCareNeeds(completed bool, petName string, careType CareType, minPriority int) tuple[Pet, CareNeed][]
+    }
+
+    class Pet {
+        +int id
+        +string name
+        +AnimalType animal
+        +string breed
+        +PetAttributes attributes
+        +CareNeed[] careNeeds
+        +addCareNeed(need CareNeed) void
+        +removeCareNeed(needId int) void
+        +listCareNeeds() CareNeed[]
+    }
+
+    class PetAttributes {
+        +string[] medications
+        +string foodRequirements
+        +string exerciseRequirements
+        +string notes
+    }
+
+    class CareNeed {
+        +int id
+        +CareType type
+        +int frequencyPerDay
+        +int durationMinutes
+        +int priority
+        +bool completed
+        +Recurrence recurrence
+        +set~int~ daysOfWeek
+        +time preferredTime
+        +occursOn(day Date) bool
+        +markComplete() void
+    }
+
+    class Calendar {
+        +int id
+        +Event[] events
+        +BlockedTime[] blockedTimes
+        +time DAY_START
+        +time DAY_END
+        +addEvent(event Event) void
+        +removeEvent(eventId int) void
+        +addBlockedTime(block BlockedTime) void
+        +getAvailableSlots(day Date) TimeSlot[]
+    }
+
+    class TimeSlot {
+        +DateTime start
+        +DateTime end
+        +float durationMinutes
+        +canFit(minutes int) bool
+    }
+
+    class BlockedTime {
+        +int id
+        +DateTime start
+        +DateTime end
+        +string reason
+    }
+
+    class Event {
+        +int id
+        +CareType type
+        +DateTime start
+        +DateTime end
+        +EventStatus status
+        +int petId
+        +int careNeedId
+    }
+
+    class Scheduler {
+        +int slotGapMinutes
+        +generateSchedule(pets Pet[], calendar Calendar, day Date) Event[]
+        +findSlot(need CareNeed, calendar Calendar, day Date) TimeSlot
+        +detectConflicts(events Event[]) Conflict[]
+    }
+
+    class Conflict {
+        +Event first
+        +Event second
+        +float overlapMinutes
+        +bool samePet
+    }
+
+    class TaskLog {
+        +Event[] history
+        +logCompleted(event Event, completedAt DateTime) void
+        +getHistory(petId int) Event[]
+    }
+
+    class Notification {
+        +int id
+        +string message
+        +DateTime scheduledFor
+        +bool sent
+        +send() void
+    }
+
+    %% --- Composition / aggregation (whole owns/holds part) ---
+    Owner "1" *--> "*" Pet : owns
+    Owner "1" *--> "1" Calendar : maintains
+    Pet "1" *--> "1" PetAttributes : has
+    Pet "1" *--> "*" CareNeed : requires
+    Calendar "1" *--> "*" Event : contains
+    Calendar "1" *--> "*" BlockedTime : reserves
+    TaskLog "1" *--> "*" Event : records
+
+    %% --- References (identity links, not ownership) ---
+    Event "*" ..> "1" Pet : petId
+    Event "*" ..> "1" CareNeed : careNeedId
+    Conflict "1" --> "2" Event : between
+    Notification "*" ..> "1" Owner : notifies
+
+    %% --- Scheduler collaborations (uses, does not own) ---
+    Scheduler ..> Pet : reads care needs
+    Scheduler ..> Calendar : places events into
+    Scheduler ..> CareNeed : expands
+    Scheduler ..> Event : produces
+    Scheduler ..> Conflict : detects
+    Scheduler ..> TimeSlot : finds
+
+    %% --- Enum usage ---
+    Pet ..> AnimalType
+    CareNeed ..> CareType
+    CareNeed ..> Recurrence
+    Event ..> EventStatus
+    Event ..> CareType
