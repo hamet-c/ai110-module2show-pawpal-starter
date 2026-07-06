@@ -1,0 +1,72 @@
+classDiagram
+    class Owner {
+        +int id
+        +string name
+        +addPet(pet Pet) void
+        +removePet(petId int) void
+        +listPets() Pet[]
+    }
+
+    class Pet {
+        +int id
+        +string name
+        +string animal
+        +string breed
+        +addCareNeed(need CareNeed) void
+        +removeCareNeed(needId int) void
+    }
+
+    class PetAttributes {
+        +string[] medications
+        +string foodRequirements
+        +string exerciseRequirements
+    }
+
+    class CareNeed {
+        +int id
+        +string type
+        +int frequencyPerDay
+        +int durationMinutes
+    }
+
+    class Calendar {
+        +addEvent(event Event) void
+        +addBlockedTime(block BlockedTime) void
+        +getAvailableSlots(date Date) TimeSlot[]
+    }
+
+    class Event {
+        +int id
+        +string type
+        +DateTime start
+        +DateTime end
+        +string status
+    }
+
+    class BlockedTime {
+        +DateTime start
+        +DateTime end
+        +string reason
+    }
+
+    class TaskLog {
+        +logCompleted(event Event, completedAt DateTime) void
+        +getHistory(petId int) Event[]
+    }
+
+    class Notification {
+        +string message
+        +DateTime scheduledFor
+        +send() void
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "1" PetAttributes : has
+    Pet "1" --> "*" CareNeed : requires
+    Owner "1" --> "1" Calendar : maintains
+    Calendar "1" --> "*" Event : contains
+    Calendar "1" --> "*" BlockedTime : reserves
+    Event "*" --> "1" Pet : for
+    Event "*" --> "1" TaskLog : recorded in
+    Event "1" --> "*" Notification : triggers
+    Notification "*" --> "1" Owner : notifies
