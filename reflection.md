@@ -18,6 +18,7 @@ Logging Task that were completed
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+Yeah it changed a bit. I had Claude review my skeleton to point out what relationships were missing before i got to far into it, and it flagged a couple things i hadnt thought about. The first was that my Owner just held the pets and the Calender was sort of floating on its own, but the scheduler needs the pets and the calender together and nothing said whose calender it was, so based on that i moved the Calender to live inside the Owner so it all comes from one place. The second thing it caught was that my Event only stored the type and the pet_id, so theres no way to trace an event back to which care need or priority it came from when i want to explain the plan, so i added a care_need_id onto the Event to fix that.
 
 ---
 
