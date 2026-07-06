@@ -80,7 +80,22 @@ Sample test output:
 
 ```
 # Paste your pytest output here
+python -m pytest
+================================================================================= test session starts =================================================================================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\miken\OneDrive\Desktop\ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 5 items                                                                                                                                                                      
+
+test\test_pawpal.py .....                                                                                                                                                        [100%]
+
+================================================================================== 5 passed in 0.02s ==================================================================================
 ```
+test_task_completion — mark_complete() flips a need's completed from False to True.
+test_task_addition — adding a CareNeed to a pet raises its task count to 1.
+test_sorting_chronological_order — 4 daily occurrences come back sorted by start time with no overlaps.
+test_recurrence_daily_occurs_every_day — a completed daily need still occurs_on tomorrow and re-schedules.
+test_conflict_detection_flags_duplicate_times — same-time events flag one conflict (30-min overlap); back-to-back events flag none.
 
 ## 📐 Smarter Scheduling
 
